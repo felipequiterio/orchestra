@@ -1,0 +1,11 @@
+
+** Was working on the test_ask.py and had to stop to implement the Task.generate() function.
+In order to implement this, I need the agent list to pass to the generate() function.
+Then I have to implement the AgentHandler class to get this list.
+To return the list, I have to create example agents.
+To be able to create example agents, I have to implement the tool decorator in the ToolAgent class.
+
+[ ] Implement the agent tool decorator
+[ ] Implement the example agents
+[ ] Fix the Task.generate() function
+[ ] Finish the test_ask.py
