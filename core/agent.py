@@ -13,11 +13,26 @@ class AgentTask(BaseModel):
     )
 
 
-class ToolAgent(ABC, BaseModel):
+class BaseAgent(ABC, BaseModel):
+    """Base class for all agents"""
+    
+    name: str = Field(..., description="Unique name of the agent")
+    description: str = Field(..., description="Agent description")
+
+    @abstractmethod 
+    def execute(self, task: AgentTask) -> Dict[str, Any]:
+        """Execute a task and return the results"""
+        pass
+
+    @abstractmethod
+    async def execute_async(self, task: AgentTask) -> Dict[str, Any]:
+        """Execute a task asynchronously and return the results"""
+        pass
+
+
+class ToolAgent(BaseAgent):
     """Base class for agents that use specific tools"""
 
-    name: str = Field(..., description="Unique name of the agent")
-    description: str = Field(..., description="Agent description") 
     system_prompt: str = Field(..., description="System prompt for the agent")
     input_schema: Dict[str, Any] = Field(..., description="Input validation schema")
     output_schema: Dict[str, Any] = Field(..., description="Output validation schema")
@@ -31,8 +46,5 @@ class ToolAgent(ABC, BaseModel):
     async def execute_async(self, task: AgentTask) -> Dict[str, Any]:
         """Execute a task asynchronously and return the results"""
         pass
-    
-    @abstractmethod
-    def validate_tool(self, tool: Dict[str, Any]) -> bool:
-        """Validate if a tool request is valid"""
-        pass
+
+
