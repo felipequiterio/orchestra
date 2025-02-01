@@ -1,4 +1,5 @@
-from core.task import Task
+from core.task import generate, TaskList
+from tests.mocks import agent_list
 
 def test_task_generation():
     query = "Add 'Buy groceries' to the user's to-do list and also fetch the current weather for New York City"
