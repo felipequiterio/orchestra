@@ -3,8 +3,9 @@ from typing import Dict, List
 from core.agent import BaseAgent, AgentTask
 from pydantic import BaseModel
 from llm.base import model_invoke
+from utils.logger import get_custom_logger
 
-# logger = get_custom_logger("TASK")
+logger = get_custom_logger("TASK")
 
 tasks_payload = {
     "name": "route_agent",
@@ -129,51 +130,46 @@ def generate(user_message: str, agent_list: List[BaseAgent]) -> TaskList:
 
     return tasks_list
 
+def route(task_list: TaskList, agent_list: List[BaseAgent]) -> List[Dict]:
 
-def route(task_list: TaskList, agent_list: List[BaseAgent]):
-    logger.info("Starting task routing process")
     results = []
-
-    agents = {agent.name.lower(): agent for agent in agent_list}
-
+    
+    available_agents = {}
+    
+    for agent in agent_list:
+        available_agents[agent.name.lower()] = agent
+    
+    # logger.info(f"Available agents: {available_agents}")
+    
     for task in task_list.steps:
-        agent_name = task.agent.lower()
-
-        logger.info(f"[Task #{task.step_number}] Routing to {agent_name}: {task.task}")
-
-        if agent_name not in agents:
-            error_msg = f"Agent '{agent_name}' not found in agent list"
-            logger.error(error_msg)
-
-            results.append(
-                {
-                    "step": task.step_number,
-                    "status": "error",
-                    "result": "None",
-                    "message": error_msg,
-                }
-            )
-            continue
-
-        agent = agents[agent_name]
-
-        agent_task = AgentTask(task=task.task, expected_output=task.expected_output)
-
-        response = agent.execute(agent_task)
-
-        results.append(
-            {
+        target_agent_name = task.agent.lower()
+        
+        if target_agent_name not in available_agents.keys():
+            results.append({
                 "step": task.step_number,
-                "status": "success",
-                "result": response,
-                "is_async": task.is_async,
-            }
+                "status": "error", 
+                "result": "None",
+                "message": f"Agent '{target_agent_name}' not found in agent list"
+            })
+            continue
+            
+        agent = available_agents[target_agent_name]
+        # logger.info(f"Agent: {agent}")
+        
+        agent_task = AgentTask(
+            task=task.task,
+            expected_output=task.expected_output
         )
-        logger.info(f"Task [#{task.step_number}] completed successfully")
-
-    logger.info("Task routing completed")
+        
+        response = agent.execute(agent_task)
+        results.append({
+            "step": task.step_number,
+            "status": "success",
+            "result": response,
+            "is_async": task.is_async
+        })
+    
     return results
-
 
 def generate_final_answer(message: str, results: List[Dict]) -> str:
     system = """
