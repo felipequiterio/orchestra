@@ -1,9 +1,10 @@
 # Inside orchestra.run(), could be something like this:
 
-def run(query: str) -> Dict[str, Any]:
+def run(query: str, agent_list: List[BaseAgent] = None, task_list: List[Task] = None) -> Dict[str, Any]:
 
     # Generate the task list from the query
-    task_list = task.generate_list(query)
+    if task_list is None:
+        task_list = task.generate_list(query)
     
     # Example task_list:
     # [
