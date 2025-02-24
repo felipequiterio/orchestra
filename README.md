@@ -1,182 +1,115 @@
-# Orchestra Framework (Work in Progress)
+# Orchestra 🎻
 
-> ⚠️ **Note**: Orchestra is currently under active development and in its early stages. APIs and functionality may change significantly. This is a proof of concept and not yet ready for production use.
+**An AI Agent Orchestration Framework**
 
-Orchestra is a flexible framework for building and orchestrating AI agents. It provides a structured way to create, manage, and coordinate multiple AI agents to handle complex tasks through natural language.
+[![Tests](https://github.com/yourusername/orchestra/actions/workflows/tests.yml/badge.svg)](https://github.com/yourusername/orchestra/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-## Current Development Status
+Orchestra is a framework for building and coordinating AI agents with tool usage capabilities. Designed for local LLM workflows with native Ollama support.
 
-The framework is being actively developed with the following components in progress:
+```python
+from orchestra import run
+from tests.mocks import agent_list
 
-✅ Basic agent structure and registration
-✅ Task generation using LLMs
-✅ Simple task routing
-🚧 Agent tool decorator (In Progress)
-🚧 LLM provider integrations (In Progress)
-❌ Async execution support (Planned)
-❌ Production-ready error handling (Planned)
-❌ Comprehensive test coverage (Planned)
+# Complete task orchestration in one call
+response = run(
+    "What's the weather in Tokyo and calculate 15% of 84590?",
+    agent_list=agent_list
+)
+```
 
-## Overview
+## Key Features
 
-Orchestra aims to allow you to:
+- 🧩 **Pluggable Agents** - Create specialized agents with custom tools
+- 🛠️ **Automatic Tool Schema** - Parameter validation from code signatures
+- 🔄 **Conversation History** - Full context tracking across executions
+- 🤖 **Multi-LLM Support** - Switch between Ollama, DeepSeek, and more
+- ⚡ **UV Powered** - Lightning-fast dependency management
 
-- Create specialized AI agents with specific capabilities
-- Route user queries to appropriate agents automatically
-- Handle multi-step tasks with dependencies
-- Execute tasks both synchronously and asynchronously
-- Integrate with different LLM providers (Ollama, DeepSeek, etc.)
+## Quick Start
 
-## Installation
-
-> ⚠️ **Note**: As this is a work in progress, installation from PyPI is not yet available.
-
-1. Clone the repository:
+1. **Install with UV**:
 
 ```bash
 git clone https://github.com/yourusername/orchestra.git
 cd orchestra
 ```
 
-2. Install the dependencies:
+2. **Configure Environment**:
 
 ```bash
-pip install -r requirements.txt
+uv venv
 ```
 
-3. Create a `.env` file in the project root:
+3. **Install Dependencies**:
 
 ```bash
-OLLAMA_MODEL=mistral
-DEEPSEEK_MODEL=your_model
-TEMPERATURE=0.7
+uv sync
+```
+
+4. **Run Tests**:
+
+```bash
+uv run pytest tests/ -v
 ```
 
 ## Core Concepts
 
 ### Agents
 
-Agents are specialized components that handle specific types of tasks. Each agent inherits from the `ToolAgent` base class:
+Define specialized actors with tools:
 
 ```python
-from orchestra.core.agent import ToolAgent, AgentTask
-class WeatherAgent(ToolAgent):
-    name: str = "Weather Agent"
-    description: str = (
-        "You are a weather manager responsible for fetching weather information"
-    )
+from core.agent import ToolAgent
 
-    @agent.tool
-    def fetch_weather(self, city: str) -> Dict:
-        temperature = 20
-        city = "New York City"
-        return {"status": "success", "message": f"Weather in {city} is {temperature} degrees"}
+class MathAgent(ToolAgent):
+    name = "Math Expert"
+    tools = [Calculator()]
+    model = "ollama"
 ```
 
-### Tasks
+### Tools
 
-Tasks represent units of work to be performed by agents. They are automatically generated from user queries and contain:
-
-- Step number
-- Task description
-- Target agent
-- Expected output
-- Async flag
+Create reusable capabilities:
 
 ```python
-from orchestra.core.task import Task
-task = Task(
-    step_number=1,
-    task="Fetch weather for New York",
-    agent="weather_agent",
-    expected_output="Current weather conditions",
-    is_async=False
-)
+from core.tools import Tool
+
+class Calculator(Tool):
+    def run(self, expression: str) -> float:
+        return eval(expression)
+    
+    def get_schema(self):
+        return super().get_schema()  # Auto-generated from run() params
 ```
 
-### Agent Handler
+### Execution
 
-The `AgentHandler` class manages agent registration and retrieval:
+Orchestrate complex tasks:
 
 ```python
-from orchestra.core.handler import AgentHandler
-from examples.weather_agent import WeatherAgent
-from examples.todo_agent import TodoAgent
+from core.task import TaskList
 
-handler = AgentHandler()
+tasks = TaskList(steps=[
+    {"step_number": 1, "task": "Calculate 15% of 84590", "agent": "math_agent"}
+])
 
-handler.register(WeatherAgent())
-handler.register(TodoAgent())
-
-agents = handler.list_agents()
+results = run("Complex math query", agent_list, task_list=tasks)
 ```
-
-## Usage Example
-
-Here's a complete example of using Orchestra:
-
-```python
-from orchestra.core.handler import AgentHandler
-from orchestra.core.task import Task
-from examples.agents import WeatherAgent, TodoAgent
-
-# Initialize and register agents
-handler = AgentHandler()
-handler.register(WeatherAgent())
-handler.register(TodoAgent())
-
-# Process a user query
-query = "Add 'Buy groceries' to my todo list and check the weather in New York"
-
-# Generate tasks from the query
-task_list = Task.generate(query, handler.list_agents())
-
-# Execute tasks
-results = Task.route(task_list, handler.list_agents())
-
-# Results will contain responses from both agents
-print(results)
-```
-
-This example demonstrates how to create agents, generate tasks from user queries, and execute them in a coordinated manner.
 
 ## Project Structure
 
 ```
 orchestra/
-├── core/
-│ ├── agent.py # Base agent classes
-│ ├── handler.py # Agent management
-│ └── task.py # Task generation/routing
-├── llm/
-│ ├── base.py # LLM interface
-│ ├── ollama.py # Ollama integration
-│ └── deepseek.py # DeepSeek integration
-├── utils/
-│ ├── logger.py # Logging utilities
-│ └── validation.py # Input validation
-├── examples/ # Example agents
-└── tests/ # Test suite
+├── core/            # Framework internals
+│   ├── agent.py     # Base agents
+│   ├── task.py      # Task management
+│   └── tools.py     # Tool infrastructure
+├── llm/             # LLM integrations
+├── tests/           # Pytest tests
+└── orchestra.py     # Main interface
 ```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## Development Status
-
-Orchestra is currently in active development. Key items on the roadmap:
-
-- [ ] Agent tool decorator implementation
-- [ ] Mock agent implementations for test purposes
-- [ ] Fix Task.generate() function
-- [ ] Async execution support
-- [ ] Additional LLM provider integrations
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT © 2024 Your Name
