@@ -172,10 +172,43 @@ def route(task_list: TaskList, agent_list: List[BaseAgent]) -> List[Dict]:
     return results
 
 def generate_final_answer(message: str, results: List[Dict]) -> str:
+
+    # Format results for the LLM
+    formatted_results = []
+    for result in results:
+        status = result.get("status", "unknown")
+        step = result.get("step", 0)
+        
+        if status == "success":
+            formatted_results.append(f"Task {step}: Success - {result.get('result', {})}")
+        else:
+            formatted_results.append(f"Task {step}: Failed - {result.get('message', 'Unknown error')}")
+            
+    results_str = "\n".join(formatted_results)
+    
     system = """
-            You are an intelligent assistant responsible for generating a final answer based on the results of the tasks.
-            """
-    response = model_invoke(system, message, None)
-    print(f"Final answer: {response}")
-    return response
+    You are an intelligent assistant tasked with synthesizing results from multiple tasks into a clear, concise final answer.
+
+    Your role is to:
+    1. Analyze the results from each completed task
+    2. Extract the key information and insights 
+    3. Combine them into a coherent response that directly addresses the user's original request
+    4. Handle both successful and failed task results appropriately
+    5. Present the information in a natural, conversational way
+    
+    If any tasks failed, acknowledge the failure and explain what information is still available.
+    Focus on providing actionable insights and clear conclusions based on the available results.
+    """
+
+    user_message = f"""
+    Original Request: {message}
+    
+    Task Results:
+    {results_str}
+    
+    Please provide a natural response that synthesizes these results.
+    """
+    
+    response = model_invoke(system, user_message, None)
+    return response["content"] if isinstance(response, dict) else response
 

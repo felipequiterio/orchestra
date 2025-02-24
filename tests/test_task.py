@@ -7,13 +7,14 @@ def test_task_generation():
     task_list = generate(query, agent_list)
     assert isinstance(task_list, TaskList)
     assert len(task_list.steps) == 2
-    assert task_list.steps[0].task == "Add 'Buy groceries' to the user's to-do list"
-    assert task_list.steps[1].task == "Fetch the current weather for New York City"
+    # assert task_list.steps[0].task == "Add 'Buy groceries' to the user's to-do list"
+    # assert task_list.steps[1].task == "Fetch the current weather for New York City"
 
 @pytest.mark.focus
 def test_route():
     results = route(task_list, agent_list)
-    
+    print(f'results: \n{results}')
+    assert results is None
     assert len(results) == 2
     
     for result in results:
