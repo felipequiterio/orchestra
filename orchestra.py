@@ -1,10 +1,16 @@
-# Inside orchestra.run(), could be something like this:
+import core.task as task
+from core.agent import BaseAgent
+from core.task import Task
+from typing import List, Any, Dict
 
-def run(query: str, agent_list: List[BaseAgent] = None, task_list: List[Task] = None) -> Dict[str, Any]:
+def run(query: str, agent_list: List[BaseAgent], task_list: List[Task] = None) -> Dict[str, Any]:
 
     # Generate the task list from the query
     if task_list is None:
         task_list = task.generate_list(query)
+    
+    if agent_list is None:
+        raise ValueError("Agent list is required")
     
     # Example task_list:
     # [
@@ -25,13 +31,13 @@ def run(query: str, agent_list: List[BaseAgent] = None, task_list: List[Task] = 
 #   ]
 
     # Then, match the task_list with the agents and execute the tasks
-    
-    for task in task_list.steps:
-        agent = agent_list.get(task.agent)
-        result = agent.execute(task.task)
-        results.append(result)
-    return results
+    results = task.route(task_list, agent_list)
 
     # Example results:
     # {"status": "success", "agent": "todo_agent", "message": "Task added successfully"}
     # {"status": "success", "agent": "weather_agent", "message": "Weather in New York City is 20 degrees"}
+    
+    final_answer = task.generate_final_answer(query, results)
+    return final_answer
+
+
