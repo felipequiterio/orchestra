@@ -9,12 +9,28 @@ Orchestra is a framework for building and coordinating AI agents with tool usage
 
 ```python
 from orchestra import run
-from tests.mocks import agent_list
+from core.agent import ToolAgent
+from core.tools import Tool
+
+# Define a specialized agent
+class MathAgent(ToolAgent):
+    name = "Math Expert"
+    description = "Handles mathematical calculations and operations"
+    tools = [Calculator()]
+    model = "ollama"
+
+# Create a tool
+class Calculator(Tool):
+    def run(self, expression: str) -> float:
+        return eval(expression)
+    
+    def get_schema(self):
+        return super().get_schema()  # Auto-generated from run() params
 
 # Complete task orchestration in one call
 response = run(
     "What's the weather in Tokyo and calculate 15% of 84590?",
-    agent_list=agent_list
+    agent_list=[MathAgent()]
 )
 ```
 
@@ -25,6 +41,8 @@ response = run(
 - 🔄 **Conversation History** - Full context tracking across executions
 - 🤖 **Multi-LLM Support** - Switch between Ollama, DeepSeek, and more
 - ⚡ **UV Powered** - Lightning-fast dependency management
+- 🔄 **Async Task Support** - Run tasks in parallel when possible
+- 🎯 **Smart Task Routing** - Automatic task decomposition and agent assignment
 
 ## Quick Start
 
@@ -64,6 +82,7 @@ from core.agent import ToolAgent
 
 class MathAgent(ToolAgent):
     name = "Math Expert"
+    description = "Handles mathematical calculations and operations"
     tools = [Calculator()]
     model = "ollama"
 ```
@@ -83,18 +102,26 @@ class Calculator(Tool):
         return super().get_schema()  # Auto-generated from run() params
 ```
 
-### Execution
+### Task Management
 
-Orchestrate complex tasks:
+Orchestra automatically decomposes complex queries into tasks and routes them to appropriate agents:
 
 ```python
-from core.task import TaskList
+from core.task import TaskList, Task
 
+# Manual task definition (optional)
 tasks = TaskList(steps=[
-    {"step_number": 1, "task": "Calculate 15% of 84590", "agent": "math_agent"}
+    Task(
+        step_number=1,
+        task="Calculate 15% of 84590",
+        agent="math_agent",
+        expected_output="The result of the calculation",
+        is_async=False
+    )
 ])
 
-results = run("Complex math query", agent_list, task_list=tasks)
+# Automatic task generation (default)
+response = run("Complex math query", agent_list=[MathAgent()])
 ```
 
 ## Project Structure
@@ -102,10 +129,13 @@ results = run("Complex math query", agent_list, task_list=tasks)
 ```
 orchestra/
 ├── core/            # Framework internals
-│   ├── agent.py     # Base agents
-│   ├── task.py      # Task management
+│   ├── agent.py     # Base agents and agent management
+│   ├── handler.py   # Request/response handling
+│   ├── task.py      # Task generation and routing
 │   └── tools.py     # Tool infrastructure
 ├── llm/             # LLM integrations
+├── utils/           # Utility functions
+├── examples/        # Example implementations
 ├── tests/           # Pytest tests
 └── orchestra.py     # Main interface
 ```
