@@ -1,215 +1,168 @@
 # Orchestra 🎻
 
-**An AI Agent Orchestration Framework**
+> An ergonomic Python framework for **tool-augmented AI agents** and multi-step orchestration.
 
-Orchestra is a powerful framework for building and coordinating AI agents with seamless tool integration. Designed for modern AI workflows, it provides native support for local LLMs through Ollama while maintaining flexibility for cloud-based models. Whether you're building simple automation scripts or complex multi-agent systems, Orchestra simplifies the orchestration process with its intuitive API and robust tool management system.
+Orchestra lets you wire up specialised agents, equip them with arbitrary Python tools and hand the framework a natural-language query. It decomposes the request into a task list, routes every task to the right agent (sync or async), runs the tools and finally merges all partial results into a single, conversational answer.
 
-## Quick Start
+It is the **missing glue** between your own Python code and whichever Large-Language-Models (LLMs) you run locally or in the cloud.
+
+---
+
+## ✨ Key Capabilities
+
+* **Pluggable agents** – subclass `ToolAgent`, give it a `Tool` list and you are done.
+* **Automatic tool schema** – the JSON schema for a tool is built straight from your `run()` signature and doc-string.
+* **Smart task router** – an LLM decomposes the user query into ordered steps and assigns the best agent for each.
+* **Async execution** – mark tasks as `is_async=true` to let Orchestra run them in parallel.
+* **Model agnostic** – works with local [Ollama](https://ollama.ai/) models out of the box but can call OpenAI, DeepSeek, Qwen… anything you expose through `llm.base.model_invoke()`.
+* **Batteries included** – shipping example agents for weather, todo management and calculations.
+
+---
+
+## 🛠 Installation
+
+Orchestra is not on PyPI (yet). Clone the repo and install the dependencies with [uv](https://github.com/astral-sh/uv):
 
 ```bash
-pip install orchestra
+# 1. clone
+$ git clone https://github.com/yourusername/orchestra.git && cd orchestra
+
+# 2. create virtualenv
+$ uv venv              # or: python -m venv .venv && source .venv/bin/activate
+
+# 3. install deps
+$ uv sync
 ```
 
-## Example
+Make sure an LLM is available. For example, with Ollama:
 
+```bash
+ollama run llama3
+```
 
+---
+
+## ⚡ Quick Start
 
 ```python
 from orchestra import run
-from core.agent import ToolAgent
+from examples.example_usage import WeatherAgent, TodoAgent, CalculatorAgent
+
+# Bundle the agents you want the router to pick from
+agents = [WeatherAgent(), TodoAgent(), CalculatorAgent()]
+
+query = "What's the weather in Tokyo and calculate 15% of 84590? Also add 'Buy groceries' to my todo list."
+
+print(run(query, agents))
+```
+
+Output (truncated):
+
+```
+⚡ Task 1 (Step 1)
+Status: ✅ SUCCESS
+Tool: get_weather
+Output: Weather in Tokyo, JP: 22°C, Sunny
+
+⚡ Task 2 (Step 2)
+Status: ✅ SUCCESS
+Tool: calculate
+Result: 12688.5
+
+🔄 Task 3 (Step 3)
+Status: ✅ SUCCESS
+Tool: manage_todo
+Output: Added 'Buy groceries' to todo list
+
+Final answer:
+Tokyo is currently sunny at 22 °C. 15 % of 84 590 is 12 688.5. And I've added "Buy groceries" to your todo list ✅
+```
+
+---
+
+## 🧩 Building Blocks
+
+### 1. Tools
+Inherit from `core.tools.Tool` and implement `run()`. Parameters become part of the JSON schema automatically:
+
+```python
 from core.tools import Tool
 
-# Define a specialized agent
-class MathAgent(ToolAgent):
-    name = "Math Expert"
-    description = "Handles mathematical calculations and operations"
-    backstory = "A mathematical expert capable of complex calculations"
-    system_prompt = "You are a math expert. Use the calculator tool to solve mathematical problems."
-    input_schema = {"type": "object", "properties": {"expression": {"type": "string"}}}
-    output_schema = {"type": "object", "properties": {"result": {"type": "number"}}}
-    tools = [Calculator()]
-    model = "ollama"
+class CalculatorTool(Tool):
+    """Basic maths using python eval (do **not** use in production!)."""
+    name = "calculate"
+    description = "Perform mathematical calculations"
 
-# Create a tool
-class Calculator(Tool):
-    name = "calculator"
-    description = "Performs mathematical calculations"
-    
     def run(self, expression: str) -> float:
-        """Calculate the result of a mathematical expression"""
+        """expression: any Python/NumPy compatible expression"""
         return eval(expression)
-
-# Complete task orchestration in one call
-response = run(
-    "What's the weather in Tokyo and calculate 15% of 84590?",
-    agent_list=[MathAgent()]
-)
 ```
 
-## Key Features
+### 2. Agents
+Wrap one or more tools and add personas by subclassing `core.agent.ToolAgent`:
 
-- 🧩 **Pluggable Agents** - Create specialized agents with custom tools
-- 🛠️ **Automatic Tool Schema** - Parameter validation from code signatures
-- 🔄 **Conversation History** - Full context tracking across executions
-- 🤖 **Multi-LLM Support** - Switch between Ollama, DeepSeek, and more
-- ⚡ **UV Powered** - Lightning-fast dependency management
-- 🔄 **Async Task Support** - Run tasks in parallel when possible
-- 🎯 **Smart Task Routing** - Automatic task decomposition and agent assignment
+```python
+from core.agent import ToolAgent
+from typing import Dict, Any, List
 
-## Quick Start
+class CalculatorAgent(ToolAgent):
+    name: str = "calculator_agent"
+    description: str = "Specialised agent for mathematical calculations"
+    backstory: str = "A mathematical computation expert that can perform various calculations accurately."
+    system_prompt: str = "You are a mathematical computation expert. Always use the calculator tool to ensure accuracy."
 
-1. **Install with UV**:
+    input_schema: Dict[str, Any] = {"type": "object", "properties": {"expression": {"type": "string"}}}
+    output_schema: Dict[str, Any] = {"type": "object", "properties": {"result": {"type": "number"}}}
 
-```bash
-git clone https://github.com/yourusername/orchestra.git
-cd orchestra
+    tools: List[Tool] = [CalculatorTool()]
+    model: str = "ollama"
 ```
 
-2. **Configure Environment**:
+### 3. Orchestration `run()`
+Simply call `orchestra.run(query, agent_list)` – the framework takes care of everything else:
+
+1. Generate/validate a `TaskList` out of the natural-language query.
+2. Route each task to its designated agent.
+3. Execute the selected tool with the provided arguments.
+4. Merge the partial responses into a concise answer.
+
+---
+
+## ⚙️ Configuration
+
+Set environment variables (or a `.env` file) to control the LLM backend and generation settings:
 
 ```bash
-uv venv
-```
-
-3. **Set up environment variables**:
-
-Create a `.env` file with your model configurations:
-```bash
-OLLAMA_MODEL=llama3.2
+# .env
+OLLAMA_MODEL=llama3
+OPENAI_MODEL=gpt-4o
 DEEPSEEK_MODEL=deepseek-coder
-OPENAI_MODEL=gpt-4
-QWEN_MODEL=qwen2.5
 TEMPERATURE=0.7
 ```
 
-4. **Install Dependencies**:
+---
+
+## 🧪 Running Tests
 
 ```bash
-uv sync
+uv run pytest -q
 ```
 
-5. **Run Tests**:
+---
 
-```bash
-uv run pytest tests/ -v
-```
-
-## Core Concepts
-
-### Agents
-
-Define specialized actors with tools by inheriting from `ToolAgent`:
-
-```python
-from core.agent import ToolAgent
-
-class MathAgent(ToolAgent):
-    name = "Math Expert"
-    description = "Handles mathematical calculations and operations"
-    backstory = "A mathematical expert capable of complex calculations"
-    system_prompt = "You are a math expert. Use the calculator tool to solve mathematical problems."
-    input_schema = {"type": "object", "properties": {"expression": {"type": "string"}}}
-    output_schema = {"type": "object", "properties": {"result": {"type": "number"}}}
-    tools = [Calculator()]
-    model = "ollama"
-```
-
-### Tools
-
-Create reusable capabilities by inheriting from `Tool`:
-
-```python
-from core.tools import Tool
-
-class Calculator(Tool):
-    name = "calculator"
-    description = "Performs mathematical calculations"
-    
-    def run(self, expression: str) -> float:
-        """Calculate the result of a mathematical expression"""
-        return eval(expression)
-    
-    # Schema is automatically generated from the run() method signature
-```
-
-### Task Management
-
-Orchestra automatically decomposes complex queries into tasks and routes them to appropriate agents:
-
-```python
-from core.task import TaskList, Task
-
-# Manual task definition (optional)
-tasks = TaskList(steps=[
-    Task(
-        step_number=1,
-        task="Calculate 15% of 84590",
-        agent="math_agent",
-        expected_output="The result of the calculation",
-        is_async=False
-    )
-])
-
-# Automatic task generation (default)
-response = run("Complex math query", agent_list=[MathAgent()])
-```
-
-### Agent Handler
-
-Manage agent registration and retrieval:
-
-```python
-from core.handler import AgentHandler
-
-handler = AgentHandler()
-handler.register(MathAgent())
-agent = handler.get_agent("Math Expert")
-```
-
-## Project Structure
+## 🗂 Project Layout
 
 ```
 orchestra/
-├── core/            # Framework internals
-│   ├── agent.py     # Base agents and agent management
-│   ├── handler.py   # Agent registration and retrieval
-│   ├── task.py      # Task generation and routing
-│   └── tools.py     # Tool infrastructure
-├── llm/             # LLM integrations
-│   ├── base.py      # Model invocation interface
-│   ├── ollama_llm.py # Ollama integration
-│   └── deepseek_llm.py # DeepSeek integration
-├── utils/           # Utility functions
-│   └── logger.py    # Custom logging setup
-├── examples/        # Example implementations
-├── tests/           # Pytest tests
-├── config.py        # Environment configuration
-└── orchestra.py     # Main interface
+├── core/               # framework internals (agents, tasks, tools)
+├── examples/           # runnable usage examples
+├── llm/                # backend-specific model adapters
+├── utils/              # logging and helpers
+└── orchestra.py        # public API – the `run()` entry-point
 ```
 
-## Configuration
+---
 
-The framework uses environment variables for configuration. Create a `.env` file:
+## 📜 License
 
-```bash
-# Model configurations
-OLLAMA_MODEL=llama3.2
-DEEPSEEK_MODEL=deepseek-coder
-OPENAI_MODEL=gpt-4
-QWEN_MODEL=qwen2.5
-
-# Generation settings
-TEMPERATURE=0.7
-```
-
-## Dependencies
-
-- **Python**: >=3.12
-- **ollama**: >=0.4.7
-- **pydantic**: >=2.10.6
-- **python-dotenv**: >=1.0.1
-- **colorama**: >=0.4.6
-
-## License
-
-MIT © 2024 Your Name
+[MIT](LICENSE) © 2024 Your Name
