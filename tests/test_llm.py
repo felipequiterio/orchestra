@@ -4,7 +4,7 @@ from llm.base import model_invoke
 def test_ollama_basic_completion():
     # Arrange
     system_message = "You are a helpful assistant"
-    user_message = "Say 'hello world!'"
+    user_message = "Answer only with 'hello world!'"
     
     # Act
     result = ollama_invoke(system_message, user_message, payload=None)

@@ -14,7 +14,7 @@ def test_task_generation():
 def test_route():
     results = route(task_list, agent_list)
     print(f'results: \n{results}')
-    assert results is None
+    # assert results is None
     assert len(results) == 2
     
     for result in results:

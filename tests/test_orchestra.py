@@ -1,6 +1,6 @@
 import pytest
-from orchestra import run
-from tests.mocks import agent_list, task_list, WeatherAgent, TodoAgent
+from ..orchestra import run
+from ..tests.mocks import agent_list, task_list
 
 def test_final_answer_generation():
     """Test answer synthesis from multiple results"""
