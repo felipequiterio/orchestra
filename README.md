@@ -83,6 +83,7 @@ Tokyo is currently sunny at 22 °C. 15 % of 84 590 is 12 688.5. And I've added "
 ## 🧩 Building Blocks
 
 ### 1. Tools
+
 Inherit from `core.tools.Tool` and implement `run()`. Parameters become part of the JSON schema automatically:
 
 ```python
@@ -99,6 +100,7 @@ class CalculatorTool(Tool):
 ```
 
 ### 2. Agents
+
 Wrap one or more tools and add personas by subclassing `core.agent.ToolAgent`:
 
 ```python
@@ -119,6 +121,7 @@ class CalculatorAgent(ToolAgent):
 ```
 
 ### 3. Orchestration `run()`
+
 Simply call `orchestra.run(query, agent_list)` – the framework takes care of everything else:
 
 1. Generate/validate a `TaskList` out of the natural-language query.
