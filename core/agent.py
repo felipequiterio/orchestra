@@ -1,12 +1,16 @@
-from abc import ABC, abstractmethod
-from typing import Dict, Any, List
-from pydantic import BaseModel, Field
 import os
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from llm.base import model_invoke
-from core.tools import Tool
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List
+
+from pydantic import BaseModel, Field
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import json
+
+from core.tools import Tool
+from llm.base import model_invoke
+
 
 class AgentTask(BaseModel):
     """Represents a task to be executed by an agent"""
@@ -20,12 +24,12 @@ class AgentTask(BaseModel):
 
 class BaseAgent(ABC, BaseModel):
     """Base class for all agents"""
-    
+
     name: str = Field(..., description="Unique name of the agent")
     description: str = Field(..., description="Agent description")
     backstory: str = Field(..., description="Backstory of the agent")
-    
-    @abstractmethod 
+
+    @abstractmethod
     def execute(self, task: AgentTask) -> Dict[str, Any]:
         """Execute a task and return the results"""
         pass
@@ -33,7 +37,7 @@ class BaseAgent(ABC, BaseModel):
     @abstractmethod
     async def execute_async(self, task: AgentTask) -> Dict[str, Any]:
         """Execute a task asynchronously and return the results"""
-        
+
         pass
 
 
@@ -57,10 +61,10 @@ class ToolAgent(BaseAgent):
                 f"-------------------------------"
             )
         return "\n".join(formatted_tools)
-    
+
     def execute(self, task: AgentTask) -> Dict[str, Any]:
         """Execute a task and return the results"""
-        
+
         tools_schema = {
             "type": "object",
             "properties": {
@@ -70,23 +74,23 @@ class ToolAgent(BaseAgent):
                         "tool_name": {
                             "type": "string",
                             "enum": [tool.name for tool in self.tools],
-                            "description": "The name of the tool to use"
+                            "description": "The name of the tool to use",
                         },
                         "tool_args": {
                             "type": "object",
-                            "description": "The arguments for the selected tool"
-                        }
+                            "description": "The arguments for the selected tool",
+                        },
                     },
-                    "required": ["tool_name", "tool_args"]
+                    "required": ["tool_name", "tool_args"],
                 },
                 "reasoning": {
                     "type": "string",
-                    "description": "Explanation for the tool choice and argument values"
-                }
+                    "description": "Explanation for the tool choice and argument values",
+                },
             },
-            "required": ["tool_execution", "reasoning"]
+            "required": ["tool_execution", "reasoning"],
         }
-        
+
         user_message = f"""
                 Task: {task.task}
                 Expected Output: {task.expected_output}
@@ -100,19 +104,25 @@ class ToolAgent(BaseAgent):
             system_message=self.system_prompt,
             user_message=user_message,
             payload=tools_schema,
-            model=self.model
+            model=self.model,
         )
-        
+
         # Handle different response formats
         if "tool_execution" in response:
             # Expected format with explicit tool selection and arguments
             selected_tool = next(
-                (tool for tool in self.tools if tool.name == response["tool_execution"]["tool_name"]),
-                None
+                (
+                    tool
+                    for tool in self.tools
+                    if tool.name == response["tool_execution"]["tool_name"]
+                ),
+                None,
             )
 
             if not selected_tool:
-                raise ValueError(f"Selected tool '{response['tool_execution']['tool_name']}' not found")
+                raise ValueError(
+                    f"Selected tool '{response['tool_execution']['tool_name']}' not found"
+                )
 
             tool_args = response["tool_execution"]["tool_args"]
             reasoning = response.get("reasoning", "")
@@ -120,7 +130,9 @@ class ToolAgent(BaseAgent):
         else:
             # Fallback: assume the model returned only the arguments for the (single) available tool
             if len(self.tools) != 1:
-                raise ValueError("Response format unrecognized and multiple tools are available; cannot determine tool to execute.")
+                raise ValueError(
+                    "Response format unrecognized and multiple tools are available; cannot determine tool to execute."
+                )
 
             selected_tool = self.tools[0]
             tool_args = response  # Entire response is assumed to be arguments dict
@@ -133,7 +145,7 @@ class ToolAgent(BaseAgent):
                 "result": result,
                 "tool_used": selected_tool.name,
                 "reasoning": reasoning,
-                "arguments": tool_args
+                "arguments": tool_args,
             }
         except Exception as e:
             raise ValueError(f"Tool execution failed: {str(e)}")
@@ -142,5 +154,3 @@ class ToolAgent(BaseAgent):
     async def execute_async(self, task: AgentTask) -> Dict[str, Any]:
         """Execute a task asynchronously and return the results"""
         pass
-
-

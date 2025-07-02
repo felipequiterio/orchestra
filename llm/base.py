@@ -1,5 +1,6 @@
-from llm.ollama_llm import ollama_invoke
 from llm.deepseek_llm import deepseek_invoke
+from llm.ollama_llm import ollama_invoke
+
 
 def model_invoke(
     system_message: str,
@@ -15,4 +16,3 @@ def model_invoke(
         raise ValueError(
             f"Invalid model: {model}. Models avaiable: ollama, deepseek, openai"
         )
-    

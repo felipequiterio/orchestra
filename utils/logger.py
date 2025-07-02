@@ -1,7 +1,7 @@
 import logging
-import inspect
-from colorama import init, Fore, Style
 from pathlib import Path
+
+from colorama import Fore, init
 
 init(autoreset=True)
 

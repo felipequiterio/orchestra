@@ -1,7 +1,9 @@
 import json
 from typing import Dict, List
-from core.agent import BaseAgent, AgentTask
+
 from pydantic import BaseModel
+
+from core.agent import AgentTask, BaseAgent
 from llm.base import model_invoke
 from utils.logger import get_custom_logger
 
@@ -48,7 +50,6 @@ tasks_payload = {
 }
 
 
-    
 class Task(BaseModel):
     step_number: int
     task: str
@@ -56,9 +57,11 @@ class Task(BaseModel):
     expected_output: str
     is_async: bool
 
+
 class TaskList(BaseModel):
     steps: List[Task]
-    
+
+
 def generate(user_message: str, agent_list: List[BaseAgent]) -> TaskList:
     agents_available = "\n".join(
         [
@@ -130,62 +133,67 @@ def generate(user_message: str, agent_list: List[BaseAgent]) -> TaskList:
 
     return tasks_list
 
-def route(task_list: TaskList, agent_list: List[BaseAgent]) -> List[Dict]:
 
+def route(task_list: TaskList, agent_list: List[BaseAgent]) -> List[Dict]:
     results = []
-    
+
     available_agents = {}
-    
+
     for agent in agent_list:
         available_agents[agent.name.lower()] = agent
-    
+
     # logger.info(f"Available agents: {available_agents}")
-    
+
     for task in task_list.steps:
         target_agent_name = task.agent.lower()
-        
+
         if target_agent_name not in available_agents.keys():
-            results.append({
-                "step": task.step_number,
-                "status": "error", 
-                "result": "None",
-                "message": f"Agent '{target_agent_name}' not found in agent list"
-            })
+            results.append(
+                {
+                    "step": task.step_number,
+                    "status": "error",
+                    "result": "None",
+                    "message": f"Agent '{target_agent_name}' not found in agent list",
+                }
+            )
             continue
-            
+
         agent = available_agents[target_agent_name]
         # logger.info(f"Agent: {agent}")
-        
-        agent_task = AgentTask(
-            task=task.task,
-            expected_output=task.expected_output
-        )
-        
+
+        agent_task = AgentTask(task=task.task, expected_output=task.expected_output)
+
         response = agent.execute(agent_task)
-        results.append({
-            "step": task.step_number,
-            "status": "success",
-            "result": response,
-            "is_async": task.is_async
-        })
-    
+        results.append(
+            {
+                "step": task.step_number,
+                "status": "success",
+                "result": response,
+                "is_async": task.is_async,
+            }
+        )
+
     return results
 
-def generate_final_answer(message: str, results: List[Dict]) -> str:
 
+def generate_final_answer(message: str, results: List[Dict]) -> str:
     # Format results for the LLM
     formatted_results = []
     for result in results:
         status = result.get("status", "unknown")
         step = result.get("step", 0)
-        
+
         if status == "success":
-            formatted_results.append(f"Task {step}: Success - {result.get('result', {})}")
+            formatted_results.append(
+                f"Task {step}: Success - {result.get('result', {})}"
+            )
         else:
-            formatted_results.append(f"Task {step}: Failed - {result.get('message', 'Unknown error')}")
-            
+            formatted_results.append(
+                f"Task {step}: Failed - {result.get('message', 'Unknown error')}"
+            )
+
     results_str = "\n".join(formatted_results)
-    
+
     system = """
     You are an intelligent assistant tasked with synthesizing results from multiple tasks into a clear, concise final answer.
 
@@ -208,7 +216,6 @@ def generate_final_answer(message: str, results: List[Dict]) -> str:
     
     Please provide a natural response that synthesizes these results.
     """
-    
+
     response = model_invoke(system, user_message, None)
     return response["content"] if isinstance(response, dict) else response
-
