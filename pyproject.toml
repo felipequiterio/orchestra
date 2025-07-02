@@ -12,6 +12,7 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "setuptools>=75.8.0",
     "colorama>=0.4.6",
+    "ruff>=0.12.1",
 ]
 
 [tool.setuptools.packages.find]
