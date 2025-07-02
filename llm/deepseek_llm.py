@@ -1,3 +1,12 @@
+import ollama
+import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from config import DEEPSEEK_MODEL
+
+def get_arguments(response: dict) -> dict:
+    return response["message"]["tool_calls"][0]["function"]["arguments"]
+
 def deepseek_invoke(system_message: str, user_message: str, payload: dict) -> dict:
     tools = None
     if payload:

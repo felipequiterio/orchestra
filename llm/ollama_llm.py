@@ -1,5 +1,8 @@
 import ollama
-from config import OLLAMA_MODEL
+import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from config import OLLAMA_MODEL, QWEN_MODEL
 
 def get_arguments(response: dict) -> dict:
     return response["message"]["tool_calls"][0]["function"]["arguments"]
