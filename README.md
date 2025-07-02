@@ -2,10 +2,17 @@
 
 **An AI Agent Orchestration Framework**
 
-[![Tests](https://github.com/yourusername/orchestra/actions/workflows/tests.yml/badge.svg)](https://github.com/yourusername/orchestra/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+Orchestra is a powerful framework for building and coordinating AI agents with seamless tool integration. Designed for modern AI workflows, it provides native support for local LLMs through Ollama while maintaining flexibility for cloud-based models. Whether you're building simple automation scripts or complex multi-agent systems, Orchestra simplifies the orchestration process with its intuitive API and robust tool management system.
 
-Orchestra is a framework for building and coordinating AI agents with tool usage capabilities. Designed for local LLM workflows with native Ollama support.
+## Quick Start
+
+```bash
+pip install orchestra
+```
+
+## Example
+
+
 
 ```python
 from orchestra import run
@@ -16,16 +23,21 @@ from core.tools import Tool
 class MathAgent(ToolAgent):
     name = "Math Expert"
     description = "Handles mathematical calculations and operations"
+    backstory = "A mathematical expert capable of complex calculations"
+    system_prompt = "You are a math expert. Use the calculator tool to solve mathematical problems."
+    input_schema = {"type": "object", "properties": {"expression": {"type": "string"}}}
+    output_schema = {"type": "object", "properties": {"result": {"type": "number"}}}
     tools = [Calculator()]
     model = "ollama"
 
 # Create a tool
 class Calculator(Tool):
-    def run(self, expression: str) -> float:
-        return eval(expression)
+    name = "calculator"
+    description = "Performs mathematical calculations"
     
-    def get_schema(self):
-        return super().get_schema()  # Auto-generated from run() params
+    def run(self, expression: str) -> float:
+        """Calculate the result of a mathematical expression"""
+        return eval(expression)
 
 # Complete task orchestration in one call
 response = run(
@@ -59,13 +71,24 @@ cd orchestra
 uv venv
 ```
 
-3. **Install Dependencies**:
+3. **Set up environment variables**:
+
+Create a `.env` file with your model configurations:
+```bash
+OLLAMA_MODEL=llama3.2
+DEEPSEEK_MODEL=deepseek-coder
+OPENAI_MODEL=gpt-4
+QWEN_MODEL=qwen2.5
+TEMPERATURE=0.7
+```
+
+4. **Install Dependencies**:
 
 ```bash
 uv sync
 ```
 
-4. **Run Tests**:
+5. **Run Tests**:
 
 ```bash
 uv run pytest tests/ -v
@@ -75,7 +98,7 @@ uv run pytest tests/ -v
 
 ### Agents
 
-Define specialized actors with tools:
+Define specialized actors with tools by inheriting from `ToolAgent`:
 
 ```python
 from core.agent import ToolAgent
@@ -83,23 +106,30 @@ from core.agent import ToolAgent
 class MathAgent(ToolAgent):
     name = "Math Expert"
     description = "Handles mathematical calculations and operations"
+    backstory = "A mathematical expert capable of complex calculations"
+    system_prompt = "You are a math expert. Use the calculator tool to solve mathematical problems."
+    input_schema = {"type": "object", "properties": {"expression": {"type": "string"}}}
+    output_schema = {"type": "object", "properties": {"result": {"type": "number"}}}
     tools = [Calculator()]
     model = "ollama"
 ```
 
 ### Tools
 
-Create reusable capabilities:
+Create reusable capabilities by inheriting from `Tool`:
 
 ```python
 from core.tools import Tool
 
 class Calculator(Tool):
+    name = "calculator"
+    description = "Performs mathematical calculations"
+    
     def run(self, expression: str) -> float:
+        """Calculate the result of a mathematical expression"""
         return eval(expression)
     
-    def get_schema(self):
-        return super().get_schema()  # Auto-generated from run() params
+    # Schema is automatically generated from the run() method signature
 ```
 
 ### Task Management
@@ -124,21 +154,61 @@ tasks = TaskList(steps=[
 response = run("Complex math query", agent_list=[MathAgent()])
 ```
 
+### Agent Handler
+
+Manage agent registration and retrieval:
+
+```python
+from core.handler import AgentHandler
+
+handler = AgentHandler()
+handler.register(MathAgent())
+agent = handler.get_agent("Math Expert")
+```
+
 ## Project Structure
 
 ```
 orchestra/
 ├── core/            # Framework internals
 │   ├── agent.py     # Base agents and agent management
-│   ├── handler.py   # Request/response handling
+│   ├── handler.py   # Agent registration and retrieval
 │   ├── task.py      # Task generation and routing
 │   └── tools.py     # Tool infrastructure
 ├── llm/             # LLM integrations
+│   ├── base.py      # Model invocation interface
+│   ├── ollama_llm.py # Ollama integration
+│   └── deepseek_llm.py # DeepSeek integration
 ├── utils/           # Utility functions
+│   └── logger.py    # Custom logging setup
 ├── examples/        # Example implementations
 ├── tests/           # Pytest tests
+├── config.py        # Environment configuration
 └── orchestra.py     # Main interface
 ```
+
+## Configuration
+
+The framework uses environment variables for configuration. Create a `.env` file:
+
+```bash
+# Model configurations
+OLLAMA_MODEL=llama3.2
+DEEPSEEK_MODEL=deepseek-coder
+OPENAI_MODEL=gpt-4
+QWEN_MODEL=qwen2.5
+
+# Generation settings
+TEMPERATURE=0.7
+```
+
+## Dependencies
+
+- **Python**: >=3.12
+- **ollama**: >=0.4.7
+- **pydantic**: >=2.10.6
+- **python-dotenv**: >=1.0.1
+- **colorama**: >=0.4.6
 
 ## License
 
