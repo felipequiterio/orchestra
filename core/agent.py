@@ -1,8 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List
 from pydantic import BaseModel, Field
+import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from llm.base import model_invoke
-from .tools import Tool
+from core.tools import Tool
 import json
 
 class AgentTask(BaseModel):
@@ -84,35 +87,53 @@ class ToolAgent(BaseAgent):
             "required": ["tool_execution", "reasoning"]
         }
         
-        response = model_invoke(
-            system_message=self.system_prompt,
-            user_message=f"""
+        user_message = f"""
                 Task: {task.task}
                 Expected Output: {task.expected_output}
 
                 Available Tools:
                 {json.dumps([tool.get_schema() for tool in self.tools], indent=2)}
 
-                Select a tool and provide its arguments to complete this task.""",
+                Select a tool and provide its arguments to complete this task."""
+
+        response = model_invoke(
+            system_message=self.system_prompt,
+            user_message=user_message,
             payload=tools_schema,
             model=self.model
         )
         
-        selected_tool = next(
-            (tool for tool in self.tools if tool.name == response["tool_execution"]["tool_name"]),
-            None
-        )
-        
-        if not selected_tool:
-            raise ValueError(f"Selected tool '{response['tool_execution']['tool_name']}' not found")
-        
+        # Handle different response formats
+        if "tool_execution" in response:
+            # Expected format with explicit tool selection and arguments
+            selected_tool = next(
+                (tool for tool in self.tools if tool.name == response["tool_execution"]["tool_name"]),
+                None
+            )
+
+            if not selected_tool:
+                raise ValueError(f"Selected tool '{response['tool_execution']['tool_name']}' not found")
+
+            tool_args = response["tool_execution"]["tool_args"]
+            reasoning = response.get("reasoning", "")
+
+        else:
+            # Fallback: assume the model returned only the arguments for the (single) available tool
+            if len(self.tools) != 1:
+                raise ValueError("Response format unrecognized and multiple tools are available; cannot determine tool to execute.")
+
+            selected_tool = self.tools[0]
+            tool_args = response  # Entire response is assumed to be arguments dict
+            reasoning = "Automatically selected tool based on single available option."
+
+        # Execute the selected tool with provided arguments
         try:
-            result = selected_tool.run(**response["tool_execution"]["tool_args"])
+            result = selected_tool.run(**tool_args)
             return {
                 "result": result,
                 "tool_used": selected_tool.name,
-                "reasoning": response["reasoning"],
-                "arguments": response["tool_execution"]["tool_args"]
+                "reasoning": reasoning,
+                "arguments": tool_args
             }
         except Exception as e:
             raise ValueError(f"Tool execution failed: {str(e)}")
