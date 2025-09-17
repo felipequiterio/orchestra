@@ -1,8 +1,8 @@
 from typing import List
 
-import core.task as task
-from core.agent import BaseAgent
-from core.task import TaskList
+from .core.task import task
+from .core.agent import BaseAgent
+from .core.task import TaskList
 
 
 def run(query: str, agent_list: List[BaseAgent], task_list: TaskList = None) -> str:

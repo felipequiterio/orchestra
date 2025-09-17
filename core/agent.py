@@ -10,7 +10,7 @@ import json
 
 from core.tools import Tool
 from llm.base import model_invoke
-
+import sys as _sys
 
 class AgentTask(BaseModel):
     """Represents a task to be executed by an agent"""
@@ -34,11 +34,11 @@ class BaseAgent(ABC, BaseModel):
         """Execute a task and return the results"""
         pass
 
-    @abstractmethod
-    async def execute_async(self, task: AgentTask) -> Dict[str, Any]:
-        """Execute a task asynchronously and return the results"""
+    # @abstractmethod
+    # async def execute_async(self, task: AgentTask) -> Dict[str, Any]:
+    #     """Execute a task asynchronously and return the results"""
 
-        pass
+    #     pass
 
 
 class ToolAgent(BaseAgent):
@@ -128,15 +128,44 @@ class ToolAgent(BaseAgent):
             reasoning = response.get("reasoning", "")
 
         else:
-            # Fallback: assume the model returned only the arguments for the (single) available tool
-            if len(self.tools) != 1:
+            # Try to intelligently match the response to a tool based on parameter names
+            best_match_tool = None
+            best_match_score = 0
+            
+            for tool in self.tools:
+                tool_schema = tool.get_schema()
+                tool_params = tool_schema.get('parameters', {}).get('properties', {})
+                
+                if isinstance(response, dict):
+                    if len(tool_params) == 0:
+                        # For tools with no parameters, check if response is empty or has no meaningful parameters
+                        if not response or all(v is None or v == '' for v in response.values()):
+                            match_score = 1.0  # Perfect match for parameterless tools with empty response
+                            if match_score > best_match_score:
+                                best_match_score = match_score
+                                best_match_tool = tool
+                    else:
+                        # Count how many response keys match tool parameters
+                        matching_params = sum(1 for key in response.keys() if key in tool_params)
+                        match_score = matching_params / len(tool_params) if tool_params else 0
+                        
+                        if match_score > best_match_score and matching_params > 0:
+                            best_match_score = match_score
+                            best_match_tool = tool
+
+            if best_match_tool:
+                selected_tool = best_match_tool
+                tool_args = response if len(selected_tool.get_schema().get('parameters', {}).get('properties', {})) > 0 else {}
+                reasoning = f"Intelligently selected {selected_tool.name} based on parameter matching (score: {best_match_score:.2f})"
+            elif len(self.tools) == 1:
+                # Fallback: single tool available
+                selected_tool = self.tools[0]
+                tool_args = response
+                reasoning = "Automatically selected tool based on single available option."
+            else:
                 raise ValueError(
                     "Response format unrecognized and multiple tools are available; cannot determine tool to execute."
                 )
-
-            selected_tool = self.tools[0]
-            tool_args = response  # Entire response is assumed to be arguments dict
-            reasoning = "Automatically selected tool based on single available option."
 
         # Execute the selected tool with provided arguments
         try:
@@ -150,7 +179,10 @@ class ToolAgent(BaseAgent):
         except Exception as e:
             raise ValueError(f"Tool execution failed: {str(e)}")
 
-    @abstractmethod
-    async def execute_async(self, task: AgentTask) -> Dict[str, Any]:
-        """Execute a task asynchronously and return the results"""
-        pass
+    # @abstractmethod
+    # async def execute_async(self, task: AgentTask) -> Dict[str, Any]:
+    #     """Execute a task asynchronously and return the results"""
+    #     pass
+
+
+agent = _sys.modules[__name__]

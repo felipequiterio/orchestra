@@ -3,9 +3,10 @@ from typing import Dict, List
 
 from pydantic import BaseModel
 
-from core.agent import AgentTask, BaseAgent
+from .agent import AgentTask, BaseAgent
 from llm.base import model_invoke
 from utils.logger import get_custom_logger
+import sys as _sys
 
 logger = get_custom_logger("TASK")
 
@@ -139,13 +140,20 @@ def route(task_list: TaskList, agent_list: List[BaseAgent]) -> List[Dict]:
 
     available_agents = {}
 
+    def normalize_agent_name(name: str) -> str:
+        """Normalize agent name by converting to lowercase and replacing spaces with underscores"""
+        return name.lower().replace(" ", "_").replace("-", "_")
+
     for agent in agent_list:
+        normalized_name = normalize_agent_name(agent.name)
+        available_agents[normalized_name] = agent
+        # Also add the original lowercase name for backward compatibility
         available_agents[agent.name.lower()] = agent
 
     # logger.info(f"Available agents: {available_agents}")
 
     for task in task_list.steps:
-        target_agent_name = task.agent.lower()
+        target_agent_name = normalize_agent_name(task.agent)
 
         if target_agent_name not in available_agents.keys():
             results.append(
@@ -219,3 +227,8 @@ def generate_final_answer(message: str, results: List[Dict]) -> str:
 
     response = model_invoke(system, user_message, None)
     return response["content"] if isinstance(response, dict) else response
+
+# Expose the current module under the name `task` so that other modules can import it as
+# `from orchestra.core.task import task` and access its functions (e.g., task.generate()).
+
+task = _sys.modules[__name__]
