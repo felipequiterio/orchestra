@@ -4,6 +4,8 @@ from typing import Any, Dict, Optional, get_type_hints
 from pydantic import BaseModel, Field
 from typing_extensions import get_args, get_origin
 
+import sys as _sys
+
 
 class BaseTool(BaseModel):
     name: str = Field(..., description="Tool name")
@@ -100,3 +102,5 @@ class Tool(BaseTool):
             if f"{param_name}:" in line:
                 return line.split(":", 1)[1].strip()
         return f"Parameter: {param_name}"
+
+tools = _sys.modules[__name__]
