@@ -5,11 +5,11 @@ from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import json
 
-from core.tools import Tool
-from llm.base import model_invoke
+from orchestra.core.tools import Tool
+from orchestra.core.events import events, Event, EventType
+from orchestra.llm.base import model_invoke
 import sys as _sys
 
 class AgentTask(BaseModel):
@@ -64,6 +64,12 @@ class ToolAgent(BaseAgent):
 
     def execute(self, task: AgentTask) -> Dict[str, Any]:
         """Execute a task and return the results"""
+        
+        events.emit(Event(
+            type=EventType.AGENT_START,
+            source=self.name,
+            data={"task": task.task, "expected_output": task.expected_output}
+        ))
 
         tools_schema = {
             "type": "object",
@@ -91,14 +97,31 @@ class ToolAgent(BaseAgent):
             "required": ["tool_execution", "reasoning"],
         }
 
-        user_message = f"""
-                Task: {task.task}
-                Expected Output: {task.expected_output}
-
-                Available Tools:
-                {json.dumps([tool.get_schema() for tool in self.tools], indent=2)}
-
-                Select a tool and provide its arguments to complete this task."""
+        user_message = (
+            f"Your task is to complete the following objective as an expert agent.\n"
+            f"\n"
+            f"Task:\n{task.task}\n"
+            f"\n"
+            f"Expected Output:\n{task.expected_output}\n"
+            f"\n"
+            f"You have access to the following tools. Each tool has a name, a description, and a set of parameters you must provide as arguments:\n"
+            f"{json.dumps([tool.get_schema() for tool in self.tools], indent=2)}\n"
+            f"\n"
+            f"Instructions:\n"
+            f"- Carefully review the available tools and their parameters.\n"
+            f"- Select the single most appropriate tool to accomplish the task.\n"
+            f"- Provide the tool name and a dictionary of arguments (with values) for the tool's parameters.\n"
+            f"- Justify your tool selection and argument choices with clear reasoning.\n"
+            f"\n"
+            f"Respond ONLY in the following JSON format:\n"
+            f"{{\n"
+            f'  "tool_execution": {{\n'
+            f'    "tool_name": "<tool name>",\n'
+            f'    "tool_args": {{ "<param1>": <value1>, ... }}\n'
+            f"  }},\n"
+            f'  "reasoning": "<your explanation>"\n'
+            f"}}\n"
+        )
 
         response = model_invoke(
             system_message=self.system_prompt,
@@ -167,16 +190,53 @@ class ToolAgent(BaseAgent):
                     "Response format unrecognized and multiple tools are available; cannot determine tool to execute."
                 )
 
+        events.emit(Event(
+            type=EventType.TOOL_SELECTION,
+            source=self.name,
+            data={
+                "tool": selected_tool.name,
+                "arguments": tool_args,
+                "reasoning": reasoning
+            }
+        ))
+
         # Execute the selected tool with provided arguments
         try:
+            events.emit(Event(
+                type=EventType.TOOL_START,
+                source=self.name,
+                data={"tool": selected_tool.name, "arguments": tool_args}
+            ))
+            
             result = selected_tool.run(**tool_args)
-            return {
+            
+            events.emit(Event(
+                type=EventType.TOOL_END,
+                source=self.name,
+                data={"tool": selected_tool.name, "result": result}
+            ))
+            
+            output = {
                 "result": result,
                 "tool_used": selected_tool.name,
                 "reasoning": reasoning,
                 "arguments": tool_args,
             }
+            
+            events.emit(Event(
+                type=EventType.AGENT_END,
+                source=self.name,
+                data={"output": output}
+            ))
+            
+            return output
+
         except Exception as e:
+            events.emit(Event(
+                type=EventType.TOOL_ERROR,
+                source=self.name,
+                data={"tool": selected_tool.name, "error": str(e)}
+            ))
             raise ValueError(f"Tool execution failed: {str(e)}")
 
     # @abstractmethod

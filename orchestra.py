@@ -3,6 +3,7 @@ from typing import List
 from .core.task import task
 from .core.agent import BaseAgent
 from .core.task import TaskList
+from .core.events import events, Event, EventType
 
 
 def run(query: str, agent_list: List[BaseAgent], task_list: TaskList = None) -> str:
@@ -17,6 +18,12 @@ def run(query: str, agent_list: List[BaseAgent], task_list: TaskList = None) -> 
     Returns:
         Final synthesized answer as a string
     """
+    events.emit(Event(
+        type=EventType.ORCHESTRA_START,
+        source="orchestra",
+        data={"query": query}
+    ))
+
     # Generate the task list from the query
     if task_list is None:
         task_list = task.generate(query, agent_list)
@@ -98,4 +105,11 @@ def run(query: str, agent_list: List[BaseAgent], task_list: TaskList = None) -> 
     # {"status": "success", "agent": "weather_agent", "message": "Weather in New York City is 20 degrees"}
 
     final_answer = task.generate_final_answer(query, results)
+    
+    events.emit(Event(
+        type=EventType.ORCHESTRA_END,
+        source="orchestra",
+        data={"final_answer": final_answer}
+    ))
+    
     return final_answer

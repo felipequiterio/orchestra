@@ -4,8 +4,9 @@ from typing import Dict, List
 from pydantic import BaseModel
 
 from .agent import AgentTask, BaseAgent
-from llm.base import model_invoke
-from utils.logger import get_custom_logger
+from orchestra.core.events import events, Event, EventType
+from orchestra.llm.base import model_invoke
+from orchestra.utils.logger import get_custom_logger
 import sys as _sys
 
 logger = get_custom_logger("TASK")
@@ -64,6 +65,12 @@ class TaskList(BaseModel):
 
 
 def generate(user_message: str, agent_list: List[BaseAgent]) -> TaskList:
+    events.emit(Event(
+        type=EventType.TASK_GENERATION_START,
+        source="task_manager",
+        data={"query": user_message}
+    ))
+
     agents_available = "\n".join(
         [
             f"- **Name**: `{agent.name}`\n  **Description**: {agent.description}"
@@ -132,6 +139,12 @@ def generate(user_message: str, agent_list: List[BaseAgent]) -> TaskList:
     # logger.info(f"Successfully validated {len(tasks_list.steps)} tasks")
     # logger.info(f"Task list: {json.dumps(tasks_list.model_dump(), indent=2)}")
 
+    events.emit(Event(
+        type=EventType.TASK_GENERATION_END,
+        source="task_manager",
+        data={"tasks": [t.model_dump() for t in tasks_list.steps]}
+    ))
+
     return tasks_list
 
 
@@ -153,15 +166,27 @@ def route(task_list: TaskList, agent_list: List[BaseAgent]) -> List[Dict]:
     # logger.info(f"Available agents: {available_agents}")
 
     for task in task_list.steps:
+        events.emit(Event(
+            type=EventType.TASK_START,
+            source="orchestra_router",
+            data={"step": task.step_number, "task": task.task, "agent": task.agent}
+        ))
+
         target_agent_name = normalize_agent_name(task.agent)
 
         if target_agent_name not in available_agents.keys():
+            error_msg = f"Agent '{target_agent_name}' not found in agent list"
+            events.emit(Event(
+                type=EventType.TASK_ERROR,
+                source="orchestra_router",
+                data={"step": task.step_number, "error": error_msg}
+            ))
             results.append(
                 {
                     "step": task.step_number,
                     "status": "error",
                     "result": "None",
-                    "message": f"Agent '{target_agent_name}' not found in agent list",
+                    "message": error_msg,
                 }
             )
             continue
@@ -171,15 +196,37 @@ def route(task_list: TaskList, agent_list: List[BaseAgent]) -> List[Dict]:
 
         agent_task = AgentTask(task=task.task, expected_output=task.expected_output)
 
-        response = agent.execute(agent_task)
-        results.append(
-            {
-                "step": task.step_number,
-                "status": "success",
-                "result": response,
-                "is_async": task.is_async,
-            }
-        )
+        try:
+            response = agent.execute(agent_task)
+            events.emit(Event(
+                type=EventType.TASK_COMPLETE,
+                source="orchestra_router",
+                data={"step": task.step_number, "result": response}
+            ))
+            results.append(
+                {
+                    "step": task.step_number,
+                    "status": "success",
+                    "result": response,
+                    "is_async": task.is_async,
+                }
+            )
+        except Exception as e:
+            events.emit(Event(
+                type=EventType.TASK_ERROR,
+                source="orchestra_router",
+                data={"step": task.step_number, "error": str(e)}
+            ))
+            results.append(
+                {
+                    "step": task.step_number,
+                    "status": "error",
+                    "result": "None",
+                    "message": str(e),
+                }
+            )
+            # Don't re-raise here to allow other tasks to potentially proceed or partial results
+            # However, depending on strictness, we might want to stop. Current implementation continues.
 
     return results
 
