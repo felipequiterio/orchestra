@@ -1,10 +1,11 @@
 import json
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
 from .agent import AgentTask, BaseAgent
 from orchestra.core.events import events, Event, EventType
+from orchestra.core.context import ChatMessage
 from orchestra.llm.base import model_invoke
 from orchestra.utils.logger import get_custom_logger
 import sys as _sys
@@ -64,7 +65,7 @@ class TaskList(BaseModel):
     steps: List[Task]
 
 
-def generate(user_message: str, agent_list: List[BaseAgent]) -> TaskList:
+def generate(user_message: str, agent_list: List[BaseAgent], history: Optional[List[ChatMessage]] = None) -> TaskList:
     events.emit(Event(
         type=EventType.TASK_GENERATION_START,
         source="task_manager",
@@ -77,10 +78,22 @@ def generate(user_message: str, agent_list: List[BaseAgent]) -> TaskList:
             for agent in agent_list
         ]
     )
+    
+    history_context = ""
+    if history:
+        # Simple format for now
+        formatted = []
+        # Use last 10 messages for context
+        for msg in history[-10:]: 
+            role = "User" if msg.role == "user" else "Assistant"
+            formatted.append(f"{role}: {msg.content}")
+        history_context = "\nPrevious Conversation History:\n" + "\n".join(formatted) + "\n"
 
     system = f"""
                 You are an intelligent assistant responsible for routing queries to the appropriate agents.
                 When a query is simple and can be handled by a single agent, route it directly to that agent with the necessary task information.
+                
+                {history_context}
                 
                 For complex queries that require multiple steps or involve multiple agents:
                 - Identify each step needed to complete the query. Each step should be a distinct task with a specific goal.

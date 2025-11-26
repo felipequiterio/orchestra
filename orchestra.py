@@ -1,12 +1,13 @@
-from typing import List
+from typing import List, Optional
 
 from .core.task import task
 from .core.agent import BaseAgent
 from .core.task import TaskList
 from .core.events import events, Event, EventType
+from .core.context import ChatMessage
 
 
-def run(query: str, agent_list: List[BaseAgent], task_list: TaskList = None) -> str:
+def run(query: str, agent_list: List[BaseAgent], task_list: TaskList = None, chat_history: Optional[List[ChatMessage]] = None) -> str:
     """
     Main entry point for Orchestra framework.
 
@@ -14,9 +15,7 @@ def run(query: str, agent_list: List[BaseAgent], task_list: TaskList = None) -> 
         query: The user's query to process
         agent_list: List of available agents
         task_list: Optional pre-defined task list (if None, will be generated automatically)
-
-    Returns:
-        Final synthesized answer as a string
+        chat_history: Optional list of previous chat messages for context
     """
     events.emit(Event(
         type=EventType.ORCHESTRA_START,
@@ -26,7 +25,7 @@ def run(query: str, agent_list: List[BaseAgent], task_list: TaskList = None) -> 
 
     # Generate the task list from the query
     if task_list is None:
-        task_list = task.generate(query, agent_list)
+        task_list = task.generate(query, agent_list, history=chat_history)
 
     if agent_list is None:
         raise ValueError("Agent list is required")
