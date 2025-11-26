@@ -1,5 +1,5 @@
-from llm.base import model_invoke
-from llm.ollama_llm import ollama_invoke
+from orchestra.llm.base import model_invoke
+from orchestra.llm.ollama_llm import ollama_invoke
 
 
 def test_ollama_basic_completion():

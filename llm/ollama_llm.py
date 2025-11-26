@@ -3,8 +3,7 @@ import sys
 
 import ollama
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from config import OLLAMA_MODEL
+from orchestra.config import OLLAMA_MODEL
 
 
 def get_arguments(response: dict) -> dict:
